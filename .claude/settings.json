@@ -1,0 +1,8 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(cargo:*)"
+    ]
+  }
+}
