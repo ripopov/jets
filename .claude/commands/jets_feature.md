@@ -32,20 +32,21 @@ Generated jets/docs/features/<N>_<BRIEF>_plan.md should contain 3 major chapters
 Research the following areas based on feature requirements:
 
 **Essential Files to Examine:**
-- **`jets/rjets/src/lib.rs`**: Core library exports and public API
-- **`jets/rjets/src/parser.rs`**: JETS format parsing - JSON Lines reader, line type discrimination, validation
-- **`jets/rjets/src/writer.rs`**: JETS format writing - streaming writer for records/events/annotations
-- **`jets/rjets/src/traits.rs`**: Core trait definitions - TraceReader, RecordAccess patterns
-- **`jets/rjets/src/virtual_reader.rs`**: Virtual trace reader abstraction layer
-- **`jets/rjets/src/jets-gui.rs`**: Main GUI application - egui-based viewer with:
+- **`src/lib.rs`**: Core library exports and public API
+- **`src/parser.rs`**: JETS format parsing - JSON Lines reader, line type discrimination, validation
+- **`src/writer.rs`**: JETS format writing - streaming writer for records/events/annotations
+- **`src/traits.rs`**: Core trait definitions - TraceReader, RecordAccess patterns
+- **`src/virtual_reader.rs`**: Virtual trace reader abstraction layer
+- **`src/jets-gui.rs`**: Main GUI application - egui-based viewer with:
   - Gantt chart rendering for timeline visualization
   - Record tree navigation and filtering
   - Event/annotation display panels
   - Theme management and color schemes
-- **`jets/rjets/src/tracegen.rs`**: Trace generator utility for testing and examples
-- **`jets/JETS.md`**: Format specification - authoritative source for JETS v2.0 schema
-- **`jets/GENERATOR.md`**: Documentation for trace generation patterns
-- **`jets/rjets/Cargo.toml`**: Dependencies and project configuration
+- **`src/tracegen.rs`**: Trace generator utility for testing and examples
+- **`src/pipetrace_reader.rs`**: Pipetrace format reader implementation
+- **`JETS.md`**: Format specification - authoritative source for JETS v2.0 schema
+- **`GENERATOR.md`**: Documentation for trace generation patterns
+- **`Cargo.toml`**: Dependencies and project configuration (package name: rjets)
 
 **Architecture Patterns to Consider:**
 - **Streaming JSON Lines Format**: Line-by-line parsing, no buffering entire file
@@ -67,16 +68,59 @@ The JETS format specification (`jets/JETS.md`) is the single source of truth for
 - Backward compatibility considerations with JETS v2.0
 - Streaming constraint implications (parent-before-child, no-forward-references)
 
-**Core Data Structures (in parser.rs):**
+**Core Data Structures (in src/parser.rs):**
 - `JetsLine`: Enum discriminating line types
 - `Header`, `Record`, `RecordEnd`, `Annotation`, `Event`, `Footer`: Serde-deserializable structs
 - `JetsTrace`: In-memory representation of loaded trace
+
+**Application Architecture:**
+- **`src/app/`**: Application state management
+  - `app_state.rs`: Main application state
+  - `application_coordinator.rs`: Coordinates application components
+  - `settings_coordinator.rs`: Settings management
+  - `theme_coordinator.rs`: Theme management
+- **`src/ui/`**: User interface components
+  - `tree_panel.rs`: Hierarchical record tree view
+  - `timeline_panel.rs`: Timeline/Gantt chart view
+  - `details_panel.rs`: Record details display
+  - `header.rs`, `status_bar.rs`, `table_header.rs`: UI chrome
+  - `panel_manager.rs`: Layout management
+  - `virtual_scrolling.rs`, `virtual_scroll_manager.rs`: Scrolling optimization
+  - `input/timeline_input_handler.rs`: Input handling
+- **`src/state/`**: UI state management
+  - `trace_state.rs`: Trace data state
+  - `tree_state.rs`: Tree view state
+  - `viewport.rs`: Viewport/visible region
+  - `selection.rs`: Selection state
+  - `theme_state.rs`: Theme state
+  - `layout_state.rs`: Layout state
+  - `interaction.rs`: User interaction state
+- **`src/rendering/`**: Rendering logic
+  - `tree_renderer.rs`: Tree rendering
+  - `timeline_renderer.rs`: Timeline/Gantt chart rendering
+  - `time_axis_renderer.rs`: Time axis rendering
+  - `timeline_overlays.rs`: Overlay rendering
+  - `text_utils.rs`: Text utilities
+- **`src/domain/`**: Business logic
+  - `tree_operations.rs`: Tree manipulation
+  - `viewport_operations.rs`: Viewport operations
+  - `visibility.rs`: Visibility calculations
+- **`src/io/`**: I/O operations
+  - `file_loader.rs`: File loading
+  - `async_loader.rs`: Async loading
+- **`src/cache/`**: Caching
+  - `tree_cache.rs`: Tree caching
+- **`src/presentation/`**: Presentation layer
+  - `color_mapping.rs`: Color mapping
+- **`src/utils/`**: Utilities
+  - `formatting.rs`: Formatting utilities
+  - `geometry.rs`: Geometry utilities
 
 ### 3. Implementation Planning
 
 **File-by-File Changes:**
 For each file that needs modification, specify:
-- **File Path**: Full path from jets/ root (e.g., `jets/rjets/src/parser.rs`)
+- **File Path**: Full path from repository root (e.g., `src/parser.rs`)
 - **Functions/Structs/Enums to Modify**: Exact names
 - **Nature of Changes**: What needs to be added/modified (NOT the actual code)
 - **Integration Points**: How it connects with other components
@@ -87,22 +131,23 @@ Do not include any code changes here.
 **Algorithm Descriptions:**
 If the feature involves complex logic: Write informal algorithm descriptions step-by-step.
 
-#### UI Integration (Only if GUI changes are needed in jets-gui.rs)
+#### UI Integration (Only if GUI changes are needed)
 If the feature has UI components:
 
 **egui Panel Structure:**
 - Location within the egui layout (top/bottom/side panels, central area)
+- Which files in `src/ui/` need modification
 - Widget types and interaction patterns (buttons, sliders, tables, plots)
-- State management (App struct fields, persistence)
-- Event handling and user input processing
+- State management in `src/app/app_state.rs` and `src/state/`
+- Event handling in `src/ui/input/` and user input processing
 
-**Gantt Chart Rendering:**
-- Changes to timeline visualization logic
-- Record bar rendering, color schemes, swimlane grouping
-- Event marker rendering and annotations display
+**Timeline/Gantt Chart Rendering (src/rendering/):**
+- Changes to timeline visualization logic in `timeline_renderer.rs`
+- Record bar rendering, color schemes in `color_mapping.rs`
+- Event marker rendering and annotations display in `timeline_overlays.rs`
 - Zoom/pan/navigation controls
 
-**Theme and Styling:**
+**Theme and Styling (src/theme.rs, src/state/theme_state.rs):**
 - Color palette modifications
 - Visual state indicators (running, stalled, complete)
 - Criticality or status visualization
@@ -120,10 +165,10 @@ If the feature requires changes to the JETS format specification:
 - Document new schema fields or line types
 - Specify version migration strategy (e.g., v2.0 → v2.1)
 - Describe backward compatibility handling
-- Update `jets/JETS.md` specification sections affected
+- Update `JETS.md` specification sections affected
 
 **Output:**
-Write the plan to: `jets/docs/features/<N>_<BRIEF>_plan.md`
+Write the plan to: `docs/features/<N>_<BRIEF>_plan.md`
 - `<N>`: Next available 4-digit number (0001, 0002, etc.)
 - `<BRIEF>`: 1-2 word feature description (snake_case)
-- Create `jets/docs/features/` directory if it doesn't exist
+- Create `docs/features/` directory if it doesn't exist
