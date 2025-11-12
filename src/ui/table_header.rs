@@ -13,7 +13,7 @@ use crate::state::LayoutState;
 /// * `ui` - The egui UI context for drawing
 /// * `layout` - Mutable reference to layout state containing expand_width and column_widths
 pub fn render_table_header(ui: &mut egui::Ui, layout: &mut LayoutState) {
-    let column_names = ["Name", "Description", "Start Clock", "End Clock", "ID"];
+    let column_names = ["Name", "Description", "Start Clock", "Duration", "ID"];
 
     let mut x_offset = 0.0;
     let header_height = 24.0;

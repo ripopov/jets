@@ -94,7 +94,7 @@ impl JetsViewerApp {
         let current_theme_name = ThemeCoordinator::load_theme_from_storage(cc.storage);
 
         // Load column widths with proper defaults (not [0.0, 0.0, 0.0, 0.0, 0.0])
-        // Default widths: [Name, Description, Start Clock, End Clock, ID]
+        // Default widths: [Name, Description, Start Clock, Duration, ID]
         let default_widths = [100.0, 300.0, 120.0, 120.0, 80.0];
         let column_widths: [f32; 5] = SettingsCoordinator::load_setting_or(
             cc.storage,

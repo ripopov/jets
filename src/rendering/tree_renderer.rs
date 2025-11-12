@@ -221,20 +221,21 @@ pub fn render_tree_node(
     );
     x_offset += column_widths[2];
 
-    // Column 3: End Clock
-    let end_str = end_clk
-        .map(|e| e.to_string())
-        .unwrap_or_else(|| "N/A".to_string());
+    // Column 3: Duration
+    let duration_str = match end_clk {
+        Some(e) => (e - clk).to_string(),
+        None => "N/A".to_string(),
+    };
 
-    let end_rect = egui::Rect::from_min_size(
+    let duration_rect = egui::Rect::from_min_size(
         egui::pos2(start_pos.x + x_offset, start_pos.y),
         egui::vec2(column_widths[3], ROW_HEIGHT),
     );
-    let truncated_end = truncate_text_to_fit(&end_str, column_widths[3], &font_id, painter);
+    let truncated_duration = truncate_text_to_fit(&duration_str, column_widths[3], &font_id, painter);
     painter.text(
-        end_rect.left_center() + egui::vec2(4.0, 0.0),
+        duration_rect.left_center() + egui::vec2(4.0, 0.0),
         egui::Align2::LEFT_CENTER,
-        &truncated_end,
+        &truncated_duration,
         font_id.clone(),
         ui.visuals().text_color(),
     );

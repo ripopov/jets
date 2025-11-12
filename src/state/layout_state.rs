@@ -20,7 +20,7 @@ pub struct LayoutState {
     timeline_split_ratio: f32,
     /// Width of the expand/collapse column (tree branch visualization area)
     expand_width: f32,
-    /// Column widths for tree view [Name, Description, Start Clock, End Clock, ID]
+    /// Column widths for tree view [Name, Description, Start Clock, Duration, ID]
     column_widths: [f32; 5],
     /// Text buffer for viewport start boundary input
     viewport_start_text: String,
@@ -41,7 +41,7 @@ impl LayoutState {
             split_ratio: 0.7,
             timeline_split_ratio: 0.3,
             expand_width: 100.0, // Default width for expand/collapse column
-            // Default widths ordered as [Name, Description, Start Clock, End Clock, ID]
+            // Default widths ordered as [Name, Description, Start Clock, Duration, ID]
             column_widths: [250.0, 300.0, 120.0, 120.0, 80.0],
             viewport_start_text: String::new(),
             viewport_end_text: String::new(),
