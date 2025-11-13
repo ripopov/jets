@@ -5,19 +5,34 @@
 use eframe::egui;
 use egui::Color32;
 use crate::rendering::text_utils::truncate_text_to_fit;
-use crate::state::LayoutState;
+use crate::state::{LayoutState, SortSpec, SortKey, SortDir};
+
+/// Interaction result from table header rendering.
+pub enum TableHeaderInteraction {
+    /// User clicked on a sortable column header.
+    SortRequested(SortSpec),
+}
 
 /// Renders the resizable column headers for the tree view table
 ///
 /// # Arguments
 /// * `ui` - The egui UI context for drawing
 /// * `layout` - Mutable reference to layout state containing expand_width and column_widths
-pub fn render_table_header(ui: &mut egui::Ui, layout: &mut LayoutState) {
+/// * `current_sort` - Currently active sort specification
+///
+/// # Returns
+/// * `Option<TableHeaderInteraction>` - Interaction result (e.g., sort request)
+pub fn render_table_header(
+    ui: &mut egui::Ui,
+    layout: &mut LayoutState,
+    current_sort: Option<SortSpec>,
+) -> Option<TableHeaderInteraction> {
     let column_names = ["Name", "Description", "Start Clock", "Duration", "ID"];
 
     let mut x_offset = 0.0;
     let header_height = 24.0;
     let start_pos = ui.cursor().min;
+    let mut interaction: Option<TableHeaderInteraction> = None;
 
     // Reserve space for the entire header row
     let (_header_rect, _) = ui.allocate_exact_size(
@@ -85,7 +100,44 @@ pub fn render_table_header(ui: &mut egui::Ui, layout: &mut LayoutState) {
             egui::vec2(width, header_height),
         );
 
-        let truncated_name = truncate_text_to_fit(name, width, &font_id, painter);
+        // Check if this column is sortable
+        let sort_key = map_column_index_to_sort_key(i);
+        let is_sortable = sort_key.is_some();
+
+        // Make header clickable if sortable
+        if is_sortable {
+            let header_id = ui.id().with(format!("header_click_{}", i));
+            let header_response = ui.interact(label_rect, header_id, egui::Sense::click());
+
+            if header_response.clicked() {
+                if let Some(key) = sort_key {
+                    let new_spec = toggle_sort_direction(current_sort, key);
+                    interaction = Some(TableHeaderInteraction::SortRequested(new_spec));
+                }
+            }
+
+            // Highlight on hover
+            if header_response.hovered() {
+                painter.rect_filled(label_rect, 0.0, Color32::from_white_alpha(10));
+            }
+        }
+
+        // Determine if this column is currently sorted
+        let is_active_sort = current_sort.and_then(|spec|
+            if sort_key == Some(spec.key) { Some(spec.dir) } else { None }
+        );
+
+        // Build display text with sort indicator
+        let mut display_text = name.to_string();
+        if let Some(dir) = is_active_sort {
+            let arrow = match dir {
+                SortDir::Asc => " ▲",
+                SortDir::Desc => " ▼",
+            };
+            display_text.push_str(arrow);
+        }
+
+        let truncated_name = truncate_text_to_fit(&display_text, width, &font_id, painter);
         painter.text(
             label_rect.left_center() + egui::vec2(4.0, 0.0),
             egui::Align2::LEFT_CENTER,
@@ -123,6 +175,52 @@ pub fn render_table_header(ui: &mut egui::Ui, layout: &mut LayoutState) {
             };
 
             ui.painter().rect_filled(handle_rect.shrink(2.0), 0.0, color);
+        }
+    }
+
+    interaction
+}
+
+/// Maps column index to sort key (if sortable).
+///
+/// # Arguments
+/// * `index` - Column index (0-4: Name, Description, Start Clock, Duration, ID)
+///
+/// # Returns
+/// * `Some(SortKey)` if the column is sortable, `None` otherwise
+fn map_column_index_to_sort_key(index: usize) -> Option<SortKey> {
+    match index {
+        1 => Some(SortKey::Description),   // Description column
+        2 => Some(SortKey::StartClock),    // Start Clock column
+        3 => Some(SortKey::Duration),      // Duration column
+        _ => None,                         // Name and ID are not sortable
+    }
+}
+
+/// Toggles sort direction or sets new sort key.
+///
+/// If the same key is clicked, toggles between Asc and Desc.
+/// If a different key is clicked, sets Asc.
+///
+/// # Arguments
+/// * `current` - Currently active sort specification
+/// * `new_key` - The key that was clicked
+///
+/// # Returns
+/// * `SortSpec` - New sort specification
+fn toggle_sort_direction(current: Option<SortSpec>, new_key: SortKey) -> SortSpec {
+    match current {
+        Some(spec) if spec.key == new_key => {
+            // Same key: toggle direction
+            let new_dir = match spec.dir {
+                SortDir::Asc => SortDir::Desc,
+                SortDir::Desc => SortDir::Asc,
+            };
+            SortSpec { key: new_key, dir: new_dir }
+        }
+        _ => {
+            // Different key or no current sort: start with Asc
+            SortSpec { key: new_key, dir: SortDir::Asc }
         }
     }
 }

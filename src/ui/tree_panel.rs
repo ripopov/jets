@@ -22,6 +22,8 @@ pub enum TreePanelInteraction {
         record_id: u64,
         was_expanded: bool,
     },
+    /// User requested sorting by clicking a column header
+    SortRequested(crate::state::SortSpec),
 }
 
 /// Renders the complete tree panel with header and virtual scrolling content.
@@ -44,7 +46,17 @@ pub fn render_tree_panel(
 
     // Render table header with resizable expand column
     // (Users can now resize it, and it will be saved)
-    table_header::render_table_header(ui, &mut state.layout);
+    let header_interaction = table_header::render_table_header(
+        ui,
+        &mut state.layout,
+        state.tree.active_sort(),
+    );
+
+    // Check for sort request from header
+    if let Some(table_header::TableHeaderInteraction::SortRequested(spec)) = header_interaction {
+        return Some(TreePanelInteraction::SortRequested(spec));
+    }
+
     ui.separator();
 
     // Get expand_width after header rendering (may have been resized)
@@ -71,6 +83,7 @@ pub fn render_tree_panel(
                     viewport_height,
                     state.viewport.viewport_start_clk(),
                     state.viewport.viewport_end_clk(),
+                    state.tree.active_sort(),
                 )
             } else {
                 VirtualScrollManager::collect_visible_nodes(
@@ -79,6 +92,7 @@ pub fn render_tree_panel(
                     &mut state.tree_cache,
                     scroll_offset,
                     viewport_height,
+                    state.tree.active_sort(),
                 )
             };
 

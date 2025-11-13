@@ -20,7 +20,7 @@ mod layout_state;
 pub use trace_state::TraceState;
 pub use viewport::ViewportState;
 pub use selection::SelectionState;
-pub use tree_state::TreeState;
+pub use tree_state::{TreeState, SortSpec, SortKey, SortDir};
 pub use interaction::InteractionState;
 pub use theme_state::ThemeState;
 pub use layout_state::LayoutState;

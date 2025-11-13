@@ -5,16 +5,41 @@
 
 use std::collections::HashSet;
 
+/// Sort key for tree node ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SortKey {
+    Description,
+    StartClock,
+    Duration,
+}
+
+/// Sort direction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SortDir {
+    Asc,
+    Desc,
+}
+
+/// Complete sorting specification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SortSpec {
+    pub key: SortKey,
+    pub dir: SortDir,
+}
+
 /// State related to tree node expansion.
 ///
 /// Responsibilities:
 /// - Tracking which tree nodes are expanded
 /// - Providing intent-revealing expansion queries
 /// - Managing bulk expansion operations
+/// - Managing sorting specification
 #[derive(Debug, Clone, Default)]
 pub struct TreeState {
     /// Set of expanded node IDs
     expanded_nodes: HashSet<u64>,
+    /// Active sort specification (None = default backend order)
+    active_sort: Option<SortSpec>,
 }
 
 impl TreeState {
@@ -22,12 +47,28 @@ impl TreeState {
     pub fn new() -> Self {
         Self {
             expanded_nodes: HashSet::new(),
+            active_sort: None,
         }
     }
 
     /// Clears all expansion state (collapses all nodes).
     pub fn clear(&mut self) {
         self.expanded_nodes.clear();
+    }
+
+    // ===== Sorting State =====
+
+    /// Returns the active sort specification.
+    pub fn active_sort(&self) -> Option<SortSpec> {
+        self.active_sort
+    }
+
+    /// Sets the active sort specification.
+    ///
+    /// # Arguments
+    /// * `spec` - The sort specification to apply, or None for default order
+    pub fn set_active_sort(&mut self, spec: Option<SortSpec>) {
+        self.active_sort = spec;
     }
 
     // ===== Expansion Queries =====

@@ -5,6 +5,7 @@
 
 use crate::cache::TreeCache;
 use crate::ui::virtual_scrolling::{self, VisibleNode};
+use crate::state::SortSpec;
 use rjets::DynTraceData;
 use std::collections::HashSet;
 
@@ -34,14 +35,17 @@ impl VirtualScrollManager {
     pub fn collect_visible_nodes(
         trace: &DynTraceData,
         expanded_nodes: &HashSet<u64>,
-        _cache: &mut TreeCache,
+        cache: &mut TreeCache,
         viewport_scroll_offset: f32,
         viewport_height: f32,
+        active_sort: Option<SortSpec>,
     ) -> Vec<VisibleNode> {
-        // Use the new strategy-based traversal system
-        let all_nodes = crate::domain::tree_operations::collect_unfiltered_visible_nodes_strategy(
+        // Use the new strategy-based traversal system with optional sorting
+        let all_nodes = crate::domain::tree_operations::collect_unfiltered_visible_nodes_with_sort(
             trace,
             expanded_nodes,
+            cache,
+            active_sort,
         );
 
         // Apply vertical scroll culling with buffer
@@ -112,11 +116,14 @@ impl VirtualScrollManager {
         viewport_height: f32,
         viewport_start_clk: i64,
         viewport_end_clk: i64,
+        active_sort: Option<SortSpec>,
     ) -> Vec<VisibleNode> {
-        // Use the new strategy-based traversal system with viewport filter
-        let filtered_nodes = crate::domain::tree_operations::collect_viewport_filtered_nodes_strategy(
+        // Use the new strategy-based traversal system with viewport filter and optional sorting
+        let filtered_nodes = crate::domain::tree_operations::collect_viewport_filtered_nodes_with_sort(
             trace,
             expanded_nodes,
+            cache,
+            active_sort,
             viewport_start_clk,
             viewport_end_clk,
         );

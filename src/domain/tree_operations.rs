@@ -9,7 +9,8 @@
 //! independent testing and clearer separation of domain logic.
 
 use crate::cache::TreeCache;
-use crate::domain::visibility::{self, VisibilityStrategy};
+use crate::domain::visibility::{self, VisibilityStrategy, ChildIndexProvider};
+use crate::state::SortSpec;
 use rjets::{TraceData, TraceRecord, DynTraceData, DynTraceRecord};
 use std::collections::HashSet;
 
@@ -369,6 +370,119 @@ pub fn collect_viewport_filtered_nodes_strategy(
         end: viewport_end_clk,
     };
     collect_visible_nodes_with_strategy(trace, expanded_nodes, &strategy)
+}
+
+/// Child index provider that uses cached sorted orderings.
+///
+/// This provider wraps the TreeCache and returns sorted child indices
+/// for parents that have been precomputed.
+struct CacheChildOrder<'t> {
+    cache: &'t TreeCache,
+    sort: Option<SortSpec>,
+}
+
+impl<'a> ChildIndexProvider<'a, DynTraceRecord<'a>> for CacheChildOrder<'_> {
+    fn child_indices(
+        &self,
+        parent: &DynTraceRecord<'a>,
+        _depth: usize,
+    ) -> Option<Vec<usize>> {
+        let sort = self.sort?;
+        let pid = parent.id();
+        self.cache.sorted_children.get(&(pid, sort)).cloned()
+    }
+}
+
+/// Generic core function for collecting visible nodes with a strategy and custom child ordering.
+///
+/// Like `collect_visible_nodes_with_strategy_generic`, but accepts a ChildIndexProvider
+/// for custom child ordering (e.g., sorting).
+fn collect_visible_nodes_with_strategy_and_order_generic<T, S, P>(
+    trace: &T,
+    expanded_nodes: &HashSet<u64>,
+    strategy: &S,
+    provider: P,
+) -> Vec<FilteredVisibleNode>
+where
+    T: rjets::TraceData,
+    for<'a> S: VisibilityStrategy<'a, T::Record<'a>>,
+    for<'a> T::Record<'a>: rjets::TraceRecord<'a>,
+    for<'a> P: ChildIndexProvider<'a, T::Record<'a>>,
+{
+    // Wrap the strategy with expansion-aware logic
+    let expansion_strategy: ExpansionAwareStrategy<'_, S, T::Record<'_>> = ExpansionAwareStrategy {
+        base_strategy: strategy,
+        expanded_nodes,
+        _phantom: std::marker::PhantomData,
+    };
+
+    // Get roots as owned records
+    let roots: Vec<T::Record<'_>> = trace
+        .root_ids()
+        .iter()
+        .filter_map(|&id| trace.get_record(id))
+        .collect();
+
+    // Traverse using the strategy with custom ordering and assign row indices
+    visibility::traverse_visible_with_order(roots, &expansion_strategy, provider)
+        .enumerate()
+        .map(|(row_index, node)| FilteredVisibleNode {
+            record_id: node.record.id(),
+            row_index,
+            depth: node.depth,
+            branch_context: node.branch_context,
+            is_last_child: node.is_last_child,
+        })
+        .collect()
+}
+
+/// Collects unfiltered visible nodes with optional sorting.
+///
+/// # Arguments
+/// * `trace` - The trace data
+/// * `expanded_nodes` - Set of expanded node IDs
+/// * `cache` - Tree cache containing sorted child indices
+/// * `active_sort` - Optional sort specification
+///
+/// # Returns
+/// Vector of all visible nodes with optional sorting applied
+pub fn collect_unfiltered_visible_nodes_with_sort(
+    trace: &DynTraceData,
+    expanded_nodes: &HashSet<u64>,
+    cache: &TreeCache,
+    active_sort: Option<SortSpec>,
+) -> Vec<FilteredVisibleNode> {
+    let strategy = visibility::UnfilteredStrategy;
+    let provider = CacheChildOrder { cache, sort: active_sort };
+    collect_visible_nodes_with_strategy_and_order_generic(trace, expanded_nodes, &strategy, provider)
+}
+
+/// Collects viewport-filtered visible nodes with optional sorting.
+///
+/// # Arguments
+/// * `trace` - The trace data
+/// * `expanded_nodes` - Set of expanded node IDs
+/// * `cache` - Tree cache containing sorted child indices
+/// * `active_sort` - Optional sort specification
+/// * `viewport_start_clk` - Start of viewport time range
+/// * `viewport_end_clk` - End of viewport time range
+///
+/// # Returns
+/// Vector of viewport-filtered visible nodes with optional sorting applied
+pub fn collect_viewport_filtered_nodes_with_sort(
+    trace: &DynTraceData,
+    expanded_nodes: &HashSet<u64>,
+    cache: &TreeCache,
+    active_sort: Option<SortSpec>,
+    viewport_start_clk: i64,
+    viewport_end_clk: i64,
+) -> Vec<FilteredVisibleNode> {
+    let strategy = visibility::ViewportFilterStrategy {
+        start: viewport_start_clk,
+        end: viewport_end_clk,
+    };
+    let provider = CacheChildOrder { cache, sort: active_sort };
+    collect_visible_nodes_with_strategy_and_order_generic(trace, expanded_nodes, &strategy, provider)
 }
 
 #[cfg(test)]

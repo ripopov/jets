@@ -1,6 +1,7 @@
 //! Caching logic for tree traversal optimizations.
 
 use std::collections::HashMap;
+use crate::state::SortSpec;
 
 /// Cache for expensive tree calculations.
 ///
@@ -32,6 +33,10 @@ pub struct TreeCache {
 
     /// Cached total filtered node count for current viewport.
     pub filtered_node_count: Option<usize>,
+
+    /// Cache of per-parent sorted child index order for a given sort spec.
+    /// Key: (parent_id, sort_spec) -> indices into parent.children
+    pub sorted_children: HashMap<(u64, SortSpec), Vec<usize>>,
 }
 
 impl TreeCache {
@@ -45,6 +50,7 @@ impl TreeCache {
             expansion_seq: 0,
             filtered_viewport_range: None,
             filtered_node_count: None,
+            sorted_children: HashMap::new(),
         }
     }
 
@@ -60,6 +66,7 @@ impl TreeCache {
         self.total_visible_nodes = None;
         self.max_visible_depth = None;
         self.expansion_seq += 1;
+        self.sorted_children.clear();
         // Also invalidate filtered cache
         self.invalidate_filtered_cache();
     }

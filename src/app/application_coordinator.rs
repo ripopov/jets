@@ -5,8 +5,11 @@
 
 use crate::app::AppState;
 use crate::io::{AsyncLoader, LoadResult};
+use crate::state::SortSpec;
+use crate::domain::sorting;
 use std::path::PathBuf;
-use rjets::TraceMetadata;
+use std::collections::HashMap;
+use rjets::{TraceMetadata, TraceData, TraceRecord};
 
 /// Coordinates application-level operations and workflows.
 ///
@@ -157,5 +160,63 @@ impl ApplicationCoordinator {
     /// Updates event selection and record selection.
     pub fn handle_timeline_event_click(state: &mut AppState, record_id: u64, event_clk: i64) {
         state.selection.select_event(record_id, event_clk);
+    }
+
+    /// Requests sorting of tree nodes.
+    ///
+    /// Sets the active sort and computes sorted child indices for all parents.
+    /// Currently implemented synchronously; could be made async if needed for large traces.
+    ///
+    /// # Arguments
+    /// * `state` - Application state
+    /// * `spec` - Sort specification (key and direction)
+    pub fn request_sorting(state: &mut AppState, spec: SortSpec) {
+        // Set the active sort
+        state.tree.set_active_sort(Some(spec));
+
+        // Clear previous sorted children cache
+        state.tree_cache.sorted_children.clear();
+
+        // If we have trace data, compute sorted orderings
+        if let Some(trace) = state.trace.trace_data() {
+            let mut sorted_map: HashMap<(u64, SortSpec), Vec<usize>> = HashMap::new();
+
+            // Compute sorted children for all parents recursively
+            for root_id in trace.root_ids().iter().copied() {
+                Self::compute_sorted_children_recursive(trace, root_id, spec, &mut sorted_map);
+            }
+
+            // Merge results into cache
+            state.tree_cache.sorted_children.extend(sorted_map);
+        }
+    }
+
+    /// Recursively computes sorted children for a subtree.
+    ///
+    /// # Arguments
+    /// * `trace` - Trace data
+    /// * `parent_id` - Parent record ID
+    /// * `spec` - Sort specification
+    /// * `out` - Output map to populate with sorted indices
+    fn compute_sorted_children_recursive(
+        trace: &rjets::DynTraceData,
+        parent_id: u64,
+        spec: SortSpec,
+        out: &mut HashMap<(u64, SortSpec), Vec<usize>>,
+    ) {
+        if let Some(parent) = trace.get_record(parent_id) {
+            // Only cache if parent has children
+            if parent.num_children() > 0 {
+                let order = sorting::sort_child_indices_for_parent(trace, &parent, spec);
+                out.insert((parent_id, spec), order.clone());
+
+                // Recurse into children using the sorted order
+                for &i in &order {
+                    if let Some(child) = parent.child_at(i) {
+                        Self::compute_sorted_children_recursive(trace, child.id(), spec, out);
+                    }
+                }
+            }
+        }
     }
 }

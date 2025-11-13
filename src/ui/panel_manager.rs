@@ -37,6 +37,8 @@ pub enum PanelInteraction {
         record_id: u64,
         event_clk: i64,
     },
+    /// User requested sorting by clicking a column header
+    TreeSortRequested(crate::state::SortSpec),
 }
 
 /// Manages the layout and rendering of all UI panels.
@@ -116,6 +118,9 @@ impl PanelManager {
                         } => PanelInteraction::TreeNodeExpandToggled {
                             record_id,
                             was_expanded,
+                        },
+                        tree_panel::TreePanelInteraction::SortRequested(spec) => {
+                            PanelInteraction::TreeSortRequested(spec)
                         },
                     });
                 }

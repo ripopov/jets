@@ -115,6 +115,7 @@ pub fn render_timeline_panel(
                 viewport_height,
                 state.viewport.viewport_start_clk(),
                 state.viewport.viewport_end_clk(),
+                state.tree.active_sort(),
             )
         } else {
             VirtualScrollManager::collect_visible_nodes(
@@ -123,6 +124,7 @@ pub fn render_timeline_panel(
                 &mut state.tree_cache,
                 scroll_offset,
                 viewport_height,
+                state.tree.active_sort(),
             )
         };
 

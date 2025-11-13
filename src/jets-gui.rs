@@ -170,6 +170,10 @@ impl JetsViewerApp {
                     event_clk,
                 );
             }
+            ui::panel_manager::PanelInteraction::TreeSortRequested(spec) => {
+                ApplicationCoordinator::request_sorting(&mut self.state, spec);
+                ctx.request_repaint();
+            }
         }
     }
 }

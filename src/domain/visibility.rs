@@ -11,6 +11,31 @@
 use rjets::TraceRecord;
 use std::marker::PhantomData;
 
+/// Provider for custom child ordering.
+///
+/// This trait allows strategies to override the default child ordering
+/// (0..num_children) with a custom order, enabling features like sorting.
+pub trait ChildIndexProvider<'a, R: TraceRecord<'a>> {
+    /// Returns custom child indices for a parent, or None for natural order.
+    ///
+    /// # Arguments
+    /// * `parent` - The parent record
+    /// * `depth` - Current depth in the tree
+    ///
+    /// # Returns
+    /// Some(Vec<usize>) for custom ordering, None for natural 0..num_children order
+    fn child_indices(&self, parent: &R, depth: usize) -> Option<Vec<usize>>;
+}
+
+/// Default child index provider that uses natural ordering.
+pub struct NaturalChildOrder;
+
+impl<'a, R: TraceRecord<'a>> ChildIndexProvider<'a, R> for NaturalChildOrder {
+    fn child_indices(&self, _parent: &R, _depth: usize) -> Option<Vec<usize>> {
+        None
+    }
+}
+
 /// Kind of tree node (parent or leaf).
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum NodeKind {
@@ -237,13 +262,14 @@ struct TraversalFrame<'a, R: TraceRecord<'a>> {
 /// This iterator performs a depth-first traversal using an explicit stack
 /// to avoid recursion and enable lazy evaluation. It consults the strategy
 /// at each step to determine visibility and whether to descend.
-pub struct TraversalIter<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>> {
+pub struct TraversalIter<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>, P: ChildIndexProvider<'a, R>> {
     stack: Vec<TraversalFrame<'a, R>>,
     strategy: &'a S,
+    child_index_provider: P,
 }
 
-impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>> TraversalIter<'a, R, S> {
-    fn new<I>(roots: I, strategy: &'a S) -> Self
+impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>, P: ChildIndexProvider<'a, R>> TraversalIter<'a, R, S, P> {
+    fn new<I>(roots: I, strategy: &'a S, provider: P) -> Self
     where
         I: IntoIterator<Item = R>,
     {
@@ -267,11 +293,11 @@ impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>> TraversalIter<'a, R, 
 
         stack.reverse();
 
-        TraversalIter { stack, strategy }
+        TraversalIter { stack, strategy, child_index_provider: provider }
     }
 }
 
-impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>> Iterator for TraversalIter<'a, R, S> {
+impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>, P: ChildIndexProvider<'a, R>> Iterator for TraversalIter<'a, R, S, P> {
     type Item = VisibleNode<'a, R>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -296,17 +322,20 @@ impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>> Iterator for Traversa
                     let parent_record = frame.record;
 
                     if should_descend {
-                        // Determine which children to process
-                        let child_range = if let Some((start, end)) = self.strategy.child_window_hint(&parent_record, depth) {
-                            // Use the hint to limit children
-                            start..end.min(num_children)
+                        // Get custom child ordering if available, otherwise use natural order
+                        let ordered_indices: Vec<usize> = if let Some(custom) = self.child_index_provider.child_indices(&parent_record, depth) {
+                            custom
                         } else {
-                            // Process all children
-                            0..num_children
+                            // Use natural order, optionally filtered by window hint
+                            if let Some((start, end)) = self.strategy.child_window_hint(&parent_record, depth) {
+                                (start..end.min(num_children)).collect()
+                            } else {
+                                (0..num_children).collect()
+                            }
                         };
 
-                        // Collect indices first
-                        let child_indices: Vec<(usize, usize)> = child_range.rev().enumerate().collect();
+                        // Collect indices in reverse for stack (LIFO order)
+                        let child_indices: Vec<(usize, usize)> = ordered_indices.into_iter().rev().enumerate().collect();
 
                         // Collect all children with clones - use a for loop to avoid closure lifetime issues
                         let mut children_to_push = Vec::new();
@@ -372,6 +401,7 @@ impl<'a, R: TraceRecord<'a>, S: VisibilityStrategy<'a, R>> Iterator for Traversa
 ///
 /// This function returns a lazy iterator that yields `VisibleNode` items
 /// for all nodes that pass the visibility checks defined by the strategy.
+/// Uses natural child ordering (0..num_children).
 ///
 /// # Arguments
 /// * `roots` - Iterator of root records to start traversal from
@@ -401,7 +431,33 @@ where
     S: VisibilityStrategy<'a, R>,
     I: IntoIterator<Item = R>,
 {
-    TraversalIter::new(roots, strategy)
+    TraversalIter::new(roots, strategy, NaturalChildOrder)
+}
+
+/// Unified traversal with custom child ordering.
+///
+/// Like `traverse_visible`, but allows specifying a custom child index provider
+/// for features like sorting.
+///
+/// # Arguments
+/// * `roots` - Iterator of root records to start traversal from
+/// * `strategy` - The visibility strategy to apply
+/// * `provider` - The child index provider for custom ordering
+///
+/// # Returns
+/// An iterator yielding `VisibleNode` items in depth-first order with custom child ordering
+pub fn traverse_visible_with_order<'a, R, S, I, P>(
+    roots: I,
+    strategy: &'a S,
+    provider: P,
+) -> impl Iterator<Item = VisibleNode<'a, R>>
+where
+    R: TraceRecord<'a>,
+    S: VisibilityStrategy<'a, R>,
+    I: IntoIterator<Item = R>,
+    P: ChildIndexProvider<'a, R>,
+{
+    TraversalIter::new(roots, strategy, provider)
 }
 
 #[cfg(test)]
